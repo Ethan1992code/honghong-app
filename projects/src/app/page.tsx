@@ -84,8 +84,6 @@ export default function HomePage() {
   };
 
   const isGirlfriend = category === "girlfriend";
-  const accentColor = isGirlfriend ? "pink" : "blue";
-  const partnerLabel = isGirlfriend ? "女友" : "男友";
 
   return (
     <div className="mx-auto max-w-lg px-4 py-8">
@@ -116,14 +114,14 @@ export default function HomePage() {
             <Button
               variant="ghost"
               size="sm"
-              className="text-pink-500 hover:text-pink-600"
+              className="text-green-500 hover:text-green-600"
               onClick={() => router.push("/login")}
             >
               登录
             </Button>
             <Button
               size="sm"
-              className="bg-pink-500 hover:bg-pink-600"
+              className="bg-green-500 hover:bg-green-600"
               onClick={() => router.push("/register")}
             >
               注册
@@ -135,13 +133,9 @@ export default function HomePage() {
       {/* 头部 */}
       <header className="mb-6 text-center">
         <div className={`mb-3 inline-flex items-center justify-center rounded-full p-3 ${
-          isGirlfriend ? "bg-pink-100" : "bg-blue-100"
+          "bg-green-100"
         }`}>
-          {isGirlfriend ? (
-            <Heart className="h-8 w-8 text-pink-500" fill="currentColor" />
-          ) : (
-            <Heart className="h-8 w-8 text-blue-500" />
-          )}
+          <Heart className="h-8 w-8 text-green-500" fill="currentColor" />
         </div>
         <h1 className="text-2xl font-bold text-gray-800">哄哄模拟器</h1>
         <p className="mt-1 text-sm text-gray-500">
@@ -153,7 +147,7 @@ export default function HomePage() {
       <div className="mb-6 grid grid-cols-2 gap-2">
         <Button
           variant={isGirlfriend ? "default" : "outline"}
-          className={`rounded-full ${isGirlfriend ? "bg-pink-500 hover:bg-pink-600" : ""}`}
+          className={`rounded-full ${isGirlfriend ? "bg-green-500 hover:bg-green-600" : ""}`}
           onClick={() => setCategory("girlfriend")}
         >
           <Heart className="mr-1 h-4 w-4" fill={isGirlfriend ? "currentColor" : "none"} />
@@ -161,7 +155,7 @@ export default function HomePage() {
         </Button>
         <Button
           variant={!isGirlfriend ? "default" : "outline"}
-          className={`rounded-full ${!isGirlfriend ? "bg-blue-500 hover:bg-blue-600" : ""}`}
+          className={`rounded-full ${!isGirlfriend ? "bg-green-500 hover:bg-green-600" : ""}`}
           onClick={() => setCategory("boyfriend")}
         >
           <HeartHandshake className="mr-1 h-4 w-4" />
@@ -171,9 +165,7 @@ export default function HomePage() {
 
       {/* 导航 */}
       <div className="mb-6 grid grid-cols-3 gap-2">
-        <Button variant="default" className={`rounded-full ${
-          isGirlfriend ? "bg-pink-500 hover:bg-pink-600" : "bg-blue-500 hover:bg-blue-600"
-        }`} disabled>
+        <Button variant="default" className={`rounded-full bg-green-500 hover:bg-green-600`} disabled>
           <Sparkles className="mr-1 h-4 w-4" />
           场景练习
         </Button>
@@ -208,9 +200,7 @@ export default function HomePage() {
             <Card
               key={scenario.id}
               className={`cursor-pointer overflow-hidden transition-all hover:shadow-md ${
-                isGirlfriend
-                  ? "border-pink-100 hover:border-pink-300"
-                  : "border-blue-100 hover:border-blue-300"
+                "border-green-100 hover:border-green-300"
               }`}
               onClick={() => startScenario(scenario.id)}
             >
@@ -235,11 +225,9 @@ export default function HomePage() {
                     <p className="text-sm text-gray-500 line-clamp-2">{scenario.description}</p>
                   </div>
                   <div className={`ml-3 flex h-10 w-10 items-center justify-center rounded-full ${
-                    isGirlfriend ? "bg-pink-50" : "bg-blue-50"
+                    "bg-green-50"
                   }`}>
-                    <ArrowRight className={`h-5 w-5 ${
-                      isGirlfriend ? "text-pink-400" : "text-blue-400"
-                    }`} />
+                    <ArrowRight className={`h-5 w-5 text-green-400`} />
                   </div>
                 </div>
               </CardContent>
@@ -250,7 +238,7 @@ export default function HomePage() {
 
       {!loading && scenarios.length === 0 && (
         <p className="py-12 text-center text-sm text-gray-400">
-          暂无{partnerLabel}相关场景
+          暂无相关场景
         </p>
       )}
     </div>

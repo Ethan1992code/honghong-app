@@ -10,26 +10,19 @@ config({ path: join(__dirname, '..', '.env.local') });
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-async function fixSequence() {
+async function addScenarios() {
   const client = await pool.connect();
   try {
-    // 获取当前序列值
-    const seqResult = await client.query("SELECT last_value FROM scenarios_id_seq");
-    console.log('当前序列值:', seqResult.rows[0].last_value);
-    
     // 获取最大ID
     const maxResult = await client.query("SELECT COALESCE(MAX(id), 0) as max_id FROM scenarios");
     const maxId = parseInt(maxResult.rows[0].max_id);
-    console.log('最大场景ID:', maxId);
+    console.log('当前最大场景ID:', maxId);
     
-    // 设置序列值为最大ID + 100（确保足够大）
-    const newValue = maxId + 100;
-    await client.query(`SELECT setval('scenarios_id_seq', ${newValue}, true)`);
-    console.log('序列已重置为:', newValue);
-    
-    // 添加新场景
+    // 新场景数据（手动指定ID）
+    let nextId = maxId + 1;
     const newScenarios = [
       {
+        id: nextId++,
         title: '忘记回复消息',
         description: '你忘记回复女朋友的消息，她觉得被忽略了',
         emotion_level: 3,
@@ -42,6 +35,7 @@ async function fixSequence() {
         category: 'girlfriend'
       },
       {
+        id: nextId++,
         title: '节日没有惊喜',
         description: '节日到了，但你没有准备惊喜，她有点失落',
         emotion_level: 2,
@@ -54,6 +48,7 @@ async function fixSequence() {
         category: 'girlfriend'
       },
       {
+        id: nextId++,
         title: '和朋友聚会忽略她',
         description: '你和朋友聚会时忽略了女朋友，她觉得被冷落',
         emotion_level: 3,
@@ -69,24 +64,28 @@ async function fixSequence() {
     
     let addedCount = 0;
     for (const scenario of newScenarios) {
+      // 检查标题是否已存在
       const exists = await client.query(
         "SELECT COUNT(*) as count FROM scenarios WHERE title = $1",
         [scenario.title]
       );
       
       if (exists.rows[0].count === '0') {
-        const result = await client.query(
-          'INSERT INTO scenarios (title, description, emotion_level, stage_config, category) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-          [scenario.title, scenario.description, scenario.emotion_level, scenario.stage_config, scenario.category]
+        await client.query(
+          'INSERT INTO scenarios (id, title, description, emotion_level, stage_config, category) VALUES ($1, $2, $3, $4, $5, $6)',
+          [scenario.id, scenario.title, scenario.description, scenario.emotion_level, scenario.stage_config, scenario.category]
         );
-        console.log(`✓ 添加场景: ${scenario.title} (ID: ${result.rows[0].id})`);
+        console.log(`✓ 添加场景: ${scenario.title} (ID: ${scenario.id})`);
         addedCount++;
       } else {
         console.log(`✗ 场景已存在，跳过: ${scenario.title}`);
       }
     }
     
-    console.log(`\n完成！共添加了 ${addedCount} 条新场景`);
+    // 更新序列值
+    await client.query(`SELECT setval('scenarios_id_seq', ${nextId}, false)`);
+    console.log(`\n序列已更新为: ${nextId}`);
+    console.log(`完成！共添加了 ${addedCount} 条新场景`);
   } catch (error) {
     console.error('操作失败:', error);
     throw error;
@@ -96,4 +95,4 @@ async function fixSequence() {
   }
 }
 
-fixSequence().catch(console.error);
+addScenarios().catch(console.error);
