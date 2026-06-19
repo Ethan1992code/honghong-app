@@ -75,10 +75,12 @@ export const sessionMessages = pgTable("session_messages", {
 ]);
 
 export const users = pgTable("users", {
-	id: serial().primaryKey().notNull(),
-	username: varchar({ length: 50 }).notNull().unique(),
-	password: varchar({ length: 255 }).notNull(),
+	id: serial("id").primaryKey().notNull(),
+	username: varchar("username", { length: 50 }).notNull().unique(),
+	password: varchar("password", { length: 255 }).notNull(),
+	email: varchar("email", { length: 100 }),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	index("users_username_idx").using("btree", table.username.asc().nullsLast().op("text_ops")),
 ]);

@@ -155,7 +155,7 @@ export default function HomePage() {
         </Button>
         <Button
           variant={!isGirlfriend ? "default" : "outline"}
-          className={`rounded-full ${!isGirlfriend ? "bg-green-500 hover:bg-green-600" : ""}`}
+          className={`rounded-full ${!isGirlfriend ? "bg-green-500 hover:bg-green-600" : ""} transform rotate-0 w-auto`}
           onClick={() => setCategory("boyfriend")}
         >
           <HeartHandshake className="mr-1 h-4 w-4" />

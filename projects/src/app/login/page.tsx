@@ -76,7 +76,7 @@ export default function LoginPage() {
             )}
             <Button
               type="submit"
-              className="w-full bg-pink-500 hover:bg-pink-600"
+              className="w-full bg-green-500 hover:bg-green-600"
               disabled={loading}
             >
               {loading ? "登录中..." : "登录"}
