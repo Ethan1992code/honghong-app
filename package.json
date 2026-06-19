@@ -1,0 +1,10 @@
+{
+  "name": "honghong-app-root",
+  "private": true,
+  "scripts": {
+    "build": "cd projects && pnpm install && pnpm build",
+    "dev": "cd projects && pnpm dev",
+    "install": "cd projects && pnpm install"
+  },
+  "dependencies": {}
+}
