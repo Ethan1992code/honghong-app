@@ -34,3 +34,12 @@ export function normalizeScenario<T extends ScenarioLike>(scenario: T) {
     stage_config: stageConfig,
   };
 }
+
+export function findScenarioById<T extends { id: number | string }>(
+  scenarios: T[],
+  scenarioId: number | string
+): T | undefined {
+  const normalizedScenarioId = Number(scenarioId);
+
+  return scenarios.find((scenario) => Number(scenario.id) === normalizedScenarioId);
+}
