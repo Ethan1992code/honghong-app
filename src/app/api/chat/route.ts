@@ -22,6 +22,17 @@ interface ScenarioSummary {
   [key: string]: unknown;
 }
 
+interface GuestHistoryMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+interface GuestSessionState {
+  current_stage?: number;
+  rounds_count?: number;
+  history?: GuestHistoryMessage[];
+}
+
 async function callVolcanoArk(
   messages: LLMMessage[],
   temperature: number = 0.8
@@ -129,6 +140,66 @@ ${scenario.title}：${scenario.description}
 提示：${stageConfig.hint || ""}`;
 }
 
+async function createGuestChatResponse(
+  scenario: ScenarioSummary,
+  userMessage: string,
+  guestSession?: GuestSessionState
+) {
+  const currentStage = guestSession?.current_stage || 1;
+  const roundsCount = guestSession?.rounds_count || 0;
+
+  const systemPrompt = buildSystemPrompt(scenario, currentStage);
+  const messages: LLMMessage[] = [{ role: "system", content: systemPrompt }];
+
+  if (guestSession?.history && guestSession.history.length > 0) {
+    for (const msg of guestSession.history) {
+      messages.push({ role: msg.role, content: msg.content });
+    }
+  }
+
+  messages.push({ role: "user", content: userMessage });
+
+  const response = await callVolcanoArk(messages, 0.8);
+
+  let llmResult: { response: string; stage_changed: boolean; reference_answer: string | null; suggestions?: string[] };
+  try {
+    const jsonStr = response.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+    llmResult = JSON.parse(jsonStr);
+    if (!llmResult.response) {
+      throw new Error("缺少 response 字段");
+    }
+  } catch {
+    llmResult = {
+      response: response.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim(),
+      stage_changed: false,
+      reference_answer: null,
+      suggestions: [],
+    };
+  }
+
+  let newStage = currentStage;
+  let sessionStatus = "in_progress";
+  if (llmResult.stage_changed) {
+    newStage = Math.min(currentStage + 1, 4);
+    if (newStage >= 4) {
+      sessionStatus = "success";
+    }
+  }
+
+  return {
+    session_id: null,
+    response: llmResult.response,
+    stage_changed: llmResult.stage_changed,
+    current_stage: newStage,
+    total_stages: 4,
+    status: sessionStatus,
+    reference_answer: llmResult.reference_answer,
+    rounds_count: roundsCount + 1,
+    suggestions: llmResult.suggestions || [],
+    is_guest: true,
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const authSession = await getSession();
@@ -155,61 +226,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "场景不存在" }, { status: 404 });
       }
 
-      const currentStage = guest_session?.current_stage || 1;
-      const roundsCount = guest_session?.rounds_count || 0;
-
-      const systemPrompt = buildSystemPrompt(scenario, currentStage);
-      const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
-        { role: "system", content: systemPrompt },
-      ];
-
-      if (guest_session?.history && guest_session.history.length > 0) {
-        for (const msg of guest_session.history) {
-          messages.push({ role: msg.role as "user" | "assistant", content: msg.content });
-        }
-      }
-
-      messages.push({ role: "user", content: user_message });
-
-      const response = await callVolcanoArk(messages, 0.8);
-
-      let llmResult: { response: string; stage_changed: boolean; reference_answer: string | null; suggestions?: string[] };
-      try {
-        const jsonStr = response.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-        llmResult = JSON.parse(jsonStr);
-        if (!llmResult.response) {
-          throw new Error("缺少 response 字段");
-        }
-      } catch {
-        llmResult = {
-          response: response.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim(),
-          stage_changed: false,
-          reference_answer: null,
-          suggestions: [],
-        };
-      }
-
-      let newStage = currentStage;
-      let sessionStatus = "in_progress";
-      if (llmResult.stage_changed) {
-        newStage = Math.min(currentStage + 1, 4);
-        if (newStage >= 4) {
-          sessionStatus = "success";
-        }
-      }
-
-      return NextResponse.json({
-        session_id: null,
-        response: llmResult.response,
-        stage_changed: llmResult.stage_changed,
-        current_stage: newStage,
-        total_stages: 4,
-        status: sessionStatus,
-        reference_answer: llmResult.reference_answer,
-        rounds_count: roundsCount + 1,
-        suggestions: llmResult.suggestions || [],
-        is_guest: true,
-      });
+      return NextResponse.json(
+        await createGuestChatResponse(scenario, user_message, guest_session)
+      );
     }
 
     if (!isLoggedIn) {
@@ -223,61 +242,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "场景不存在" }, { status: 404 });
       }
 
-      const currentStage = guest_session?.current_stage || 1;
-      const roundsCount = guest_session?.rounds_count || 0;
-
-      const systemPrompt = buildSystemPrompt(scenario, currentStage);
-      const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
-        { role: "system", content: systemPrompt },
-      ];
-
-      if (guest_session?.history && guest_session.history.length > 0) {
-        for (const msg of guest_session.history) {
-          messages.push({ role: msg.role as "user" | "assistant", content: msg.content });
-        }
-      }
-
-      messages.push({ role: "user", content: user_message });
-
-      const response = await callVolcanoArk(messages, 0.8);
-
-      let llmResult: { response: string; stage_changed: boolean; reference_answer: string | null; suggestions?: string[] };
-      try {
-        const jsonStr = response.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-        llmResult = JSON.parse(jsonStr);
-        if (!llmResult.response) {
-          throw new Error("缺少 response 字段");
-        }
-      } catch {
-        llmResult = {
-          response: response.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim(),
-          stage_changed: false,
-          reference_answer: null,
-          suggestions: [],
-        };
-      }
-
-      let newStage = currentStage;
-      let sessionStatus = "in_progress";
-      if (llmResult.stage_changed) {
-        newStage = Math.min(currentStage + 1, 4);
-        if (newStage >= 4) {
-          sessionStatus = "success";
-        }
-      }
-
-      return NextResponse.json({
-        session_id: null,
-        response: llmResult.response,
-        stage_changed: llmResult.stage_changed,
-        current_stage: newStage,
-        total_stages: 4,
-        status: sessionStatus,
-        reference_answer: llmResult.reference_answer,
-        rounds_count: roundsCount + 1,
-        suggestions: llmResult.suggestions || [],
-        is_guest: true,
-      });
+      return NextResponse.json(
+        await createGuestChatResponse(scenario, user_message, guest_session)
+      );
     }
 
     let session: any;
@@ -311,7 +278,14 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (scenarioError || !scenarioData) {
-        return NextResponse.json({ error: "场景不存在" }, { status: 404 });
+        const apiScenario = await loadScenarioFromApi(request, scenario_id);
+        if (!apiScenario) {
+          return NextResponse.json({ error: "场景不存在" }, { status: 404 });
+        }
+
+        return NextResponse.json(
+          await createGuestChatResponse(apiScenario, user_message, guest_session)
+        );
       }
 
       scenario = scenarioData;
@@ -329,7 +303,9 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (createError || !newSession) {
-        return NextResponse.json({ error: "创建会话失败" }, { status: 500 });
+        return NextResponse.json(
+          await createGuestChatResponse(scenario, user_message, guest_session)
+        );
       }
       session = newSession;
     }
