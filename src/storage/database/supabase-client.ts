@@ -1,8 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { execSync } from 'child_process';
 import { getReportBuffer, createWrappedFetch } from 'coze-coding-dev-sdk';
 
-let envLoaded = false;
 let supabaseClient: SupabaseClient | null = null;
 
 interface SupabaseCredentials {
@@ -10,68 +8,7 @@ interface SupabaseCredentials {
   anonKey: string;
 }
 
-function loadEnv(): void {
-  if (envLoaded || (process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY)) {
-    return;
-  }
-
-  try {
-    try {
-      require('dotenv').config();
-      if (process.env.COZE_SUPABASE_URL && process.env.COZE_SUPABASE_ANON_KEY) {
-        envLoaded = true;
-        return;
-      }
-    } catch {
-      // dotenv not available
-    }
-
-    const pythonCode = `
-import os
-import sys
-try:
-    from coze_workload_identity import Client
-    client = Client()
-    env_vars = client.get_project_env_vars()
-    client.close()
-    for env_var in env_vars:
-        print(f"{env_var.key}={env_var.value}")
-except Exception as e:
-    print(f"# Error: {e}", file=sys.stderr)
-`;
-
-    const output = execSync(`python3 -c '${pythonCode.replace(/'/g, "'\"'\"'")}'`, {
-      encoding: 'utf-8',
-      timeout: 10000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    const lines = output.trim().split('\n');
-    for (const line of lines) {
-      if (line.startsWith('#')) continue;
-      const eqIndex = line.indexOf('=');
-      if (eqIndex > 0) {
-        const key = line.substring(0, eqIndex);
-        let value = line.substring(eqIndex + 1);
-        if ((value.startsWith("'") && value.endsWith("'")) ||
-            (value.startsWith('"') && value.endsWith('"'))) {
-          value = value.slice(1, -1);
-        }
-        if (!process.env[key]) {
-          process.env[key] = value;
-        }
-      }
-    }
-
-    envLoaded = true;
-  } catch {
-    // Silently fail
-  }
-}
-
 function getSupabaseCredentials(): SupabaseCredentials | null {
-  loadEnv();
-
   const url = process.env.COZE_SUPABASE_URL;
   const anonKey = process.env.COZE_SUPABASE_ANON_KEY;
 
@@ -84,7 +21,6 @@ function getSupabaseCredentials(): SupabaseCredentials | null {
 }
 
 function getSupabaseServiceRoleKey(): string | undefined {
-  loadEnv();
   return process.env.COZE_SUPABASE_SERVICE_ROLE_KEY;
 }
 
@@ -135,4 +71,4 @@ function getSupabaseClient(token?: string): SupabaseClient | null {
   return supabaseClient;
 }
 
-export { loadEnv, getSupabaseCredentials, getSupabaseServiceRoleKey, getSupabaseClient };
+export { getSupabaseCredentials, getSupabaseServiceRoleKey, getSupabaseClient };
