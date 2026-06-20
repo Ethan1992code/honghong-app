@@ -3,7 +3,6 @@ import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { LLMClient, Config } from "coze-coding-dev-sdk";
 import { getSession } from "@/lib/session";
 
-// 进度阶段配置
 const STAGES = [
   { id: 1, name: "生气" },
   { id: 2, name: "缓和" },
@@ -16,7 +15,7 @@ function buildSystemPrompt(scenario: any, currentStage: number) {
   const role = isGirlfriend ? "女朋友" : "男朋友";
   const partner = isGirlfriend ? "男朋友" : "女朋友";
   const stageInfo = STAGES.find((s) => s.id === currentStage) || STAGES[0];
-  const stageConfig = scenario.stage_config?.[currentStage - 1] || {};
+  const stageConfig = scenario.stage_config?.[currentStage - 1] || scenario.stageConfig?.[currentStage - 1] || {};
 
   return `你是一个真实的${role}，正在因为某件事生${partner}的气。你的任务是模拟${role}在不同生气阶段的真实反应。
 
@@ -69,7 +68,6 @@ ${scenario.title}：${scenario.description}
 
 export async function POST(request: NextRequest) {
   try {
-    // 从 session 获取当前用户（可选，支持游客模式）
     const authSession = await getSession();
     const isLoggedIn = authSession.isLoggedIn && authSession.userId;
     const user_id = isLoggedIn ? authSession.userId : null;
@@ -84,36 +82,28 @@ export async function POST(request: NextRequest) {
     const config = new Config();
     const llm = new LLMClient(config);
 
-    // ========== 游客模式 ==========
-    if (!isLoggedIn) {
-      // 获取场景信息
-      let scenario: any;
-      if (scenario_id) {
-        const { data: scenarioData } = await client
-          .from("scenarios")
-          .select("*")
-          .eq("id", scenario_id)
-          .single();
-        scenario = scenarioData;
-      } else {
+    if (!client) {
+      console.warn('[Chat] Supabase not available, using guest mode');
+      if (!scenario_id) {
         return NextResponse.json({ error: "缺少场景ID" }, { status: 400 });
       }
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/api/scenarios?id=${scenario_id}`);
+      const scenariosData = await res.json();
+      const scenario = scenariosData.scenarios?.find((s: any) => s.id === scenario_id);
 
       if (!scenario) {
         return NextResponse.json({ error: "场景不存在" }, { status: 404 });
       }
 
-      // 游客模式：使用前端传来的阶段，默认从1开始
       const currentStage = guest_session?.current_stage || 1;
       const roundsCount = guest_session?.rounds_count || 0;
 
-      // 调用 LLM
       const systemPrompt = buildSystemPrompt(scenario, currentStage);
       const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
         { role: "system", content: systemPrompt },
       ];
 
-      // 添加游客前端传来的历史对话
       if (guest_session?.history && guest_session.history.length > 0) {
         for (const msg of guest_session.history) {
           messages.push({ role: msg.role as "user" | "assistant", content: msg.content });
@@ -127,7 +117,6 @@ export async function POST(request: NextRequest) {
         temperature: 0.8,
       });
 
-      // 解析 LLM 回复
       let llmResult: { response: string; stage_changed: boolean; reference_answer: string | null; suggestions?: string[] };
       try {
         const jsonStr = response.content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
@@ -144,7 +133,6 @@ export async function POST(request: NextRequest) {
         };
       }
 
-      // 计算新阶段
       let newStage = currentStage;
       let sessionStatus = "in_progress";
       if (llmResult.stage_changed) {
@@ -168,11 +156,86 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // ========== 登录用户模式 ==========
+    if (!isLoggedIn) {
+      let scenario: any;
+      if (scenario_id) {
+        const { data: scenarioData } = await client
+          .from("scenarios")
+          .select("*")
+          .eq("id", scenario_id)
+          .single();
+        scenario = scenarioData;
+      } else {
+        return NextResponse.json({ error: "缺少场景ID" }, { status: 400 });
+      }
+
+      if (!scenario) {
+        return NextResponse.json({ error: "场景不存在" }, { status: 404 });
+      }
+
+      const currentStage = guest_session?.current_stage || 1;
+      const roundsCount = guest_session?.rounds_count || 0;
+
+      const systemPrompt = buildSystemPrompt(scenario, currentStage);
+      const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
+        { role: "system", content: systemPrompt },
+      ];
+
+      if (guest_session?.history && guest_session.history.length > 0) {
+        for (const msg of guest_session.history) {
+          messages.push({ role: msg.role as "user" | "assistant", content: msg.content });
+        }
+      }
+
+      messages.push({ role: "user", content: user_message });
+
+      const response = await llm.invoke(messages, {
+        model: "doubao-seed-2-0-lite-260215",
+        temperature: 0.8,
+      });
+
+      let llmResult: { response: string; stage_changed: boolean; reference_answer: string | null; suggestions?: string[] };
+      try {
+        const jsonStr = response.content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+        llmResult = JSON.parse(jsonStr);
+        if (!llmResult.response) {
+          throw new Error("缺少 response 字段");
+        }
+      } catch {
+        llmResult = {
+          response: response.content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim(),
+          stage_changed: false,
+          reference_answer: null,
+          suggestions: [],
+        };
+      }
+
+      let newStage = currentStage;
+      let sessionStatus = "in_progress";
+      if (llmResult.stage_changed) {
+        newStage = Math.min(currentStage + 1, 4);
+        if (newStage >= 4) {
+          sessionStatus = "success";
+        }
+      }
+
+      return NextResponse.json({
+        session_id: null,
+        response: llmResult.response,
+        stage_changed: llmResult.stage_changed,
+        current_stage: newStage,
+        total_stages: 4,
+        status: sessionStatus,
+        reference_answer: llmResult.reference_answer,
+        rounds_count: roundsCount + 1,
+        suggestions: llmResult.suggestions || [],
+        is_guest: true,
+      });
+    }
+
     let session: any;
     let scenario: any;
 
-    // 1. 获取或创建会话
     if (session_id) {
       const { data, error } = await client
         .from("sessions")
@@ -186,7 +249,6 @@ export async function POST(request: NextRequest) {
       session = data;
       scenario = data.scenarios;
 
-      // 如果会话已完成，不允许继续
       if (session.status !== "in_progress") {
         return NextResponse.json({ error: "会话已结束" }, { status: 400 });
       }
@@ -195,7 +257,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "新会话需要 scenario_id" }, { status: 400 });
       }
 
-      // 获取场景
       const { data: scenarioData, error: scenarioError } = await client
         .from("scenarios")
         .select("*")
@@ -208,7 +269,6 @@ export async function POST(request: NextRequest) {
 
       scenario = scenarioData;
 
-      // 创建新会话
       const { data: newSession, error: createError } = await client
         .from("sessions")
         .insert({
@@ -229,7 +289,6 @@ export async function POST(request: NextRequest) {
 
     const currentStage = session.current_stage;
 
-    // 2. 获取最近 10 条对话历史
     const { data: historyMessages } = await client
       .from("session_messages")
       .select("role, content")
@@ -239,19 +298,16 @@ export async function POST(request: NextRequest) {
 
     const history = (historyMessages || []).reverse();
 
-    // 3. 调用 LLM
     const systemPrompt = buildSystemPrompt(scenario, currentStage);
 
     const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
       { role: "system", content: systemPrompt },
     ];
 
-    // 添加历史对话
     for (const msg of history) {
       messages.push({ role: msg.role as "user" | "assistant", content: msg.content });
     }
 
-    // 添加当前用户消息
     messages.push({ role: "user", content: user_message });
 
     const response = await llm.invoke(messages, {
@@ -259,10 +315,8 @@ export async function POST(request: NextRequest) {
       temperature: 0.8,
     });
 
-    // 4. 解析 LLM 回复
     let llmResult: { response: string; stage_changed: boolean; reference_answer: string | null; suggestions?: string[] };
     try {
-      // 提取 JSON（模型可能包含 markdown 代码块）
       const jsonStr = response.content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
       llmResult = JSON.parse(jsonStr);
 
@@ -270,7 +324,6 @@ export async function POST(request: NextRequest) {
         throw new Error("缺少 response 字段");
       }
     } catch {
-      // 解析失败时，把整个输出作为回复文本
       llmResult = {
         response: response.content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim(),
         stage_changed: false,
@@ -279,7 +332,6 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    // 5. 保存用户消息
     await client.from("session_messages").insert({
       session_id: session.id,
       role: "user",
@@ -287,7 +339,6 @@ export async function POST(request: NextRequest) {
       stage: currentStage,
     });
 
-    // 6. 保存 AI 回复
     await client.from("session_messages").insert({
       session_id: session.id,
       role: "assistant",
@@ -295,7 +346,6 @@ export async function POST(request: NextRequest) {
       stage: currentStage,
     });
 
-    // 7. 更新会话状态
     let newStage = currentStage;
     let sessionStatus = "in_progress";
 
@@ -303,7 +353,6 @@ export async function POST(request: NextRequest) {
       newStage = Math.min(currentStage + 1, 4);
 
       if (newStage >= 4) {
-        // 到达最终阶段，标记成功
         sessionStatus = "success";
       }
     }
@@ -318,12 +367,10 @@ export async function POST(request: NextRequest) {
       })
       .eq("id", session.id);
 
-    // 8. 更新进度记录
     if (llmResult.stage_changed && user_id) {
       await updateProgress(client, user_id, scenario.id, newStage);
     }
 
-    // 9. 会话成功时更新成功记录
     if (sessionStatus === "success" && user_id) {
       await updateProgress(client, user_id, scenario.id, 4);
     }
@@ -347,7 +394,6 @@ export async function POST(request: NextRequest) {
 }
 
 async function updateProgress(client: any, userId: number, scenarioId: number, stage: number) {
-  // 查询现有进度
   const { data: existing } = await client
     .from("progress_records")
     .select("*")
@@ -355,7 +401,6 @@ async function updateProgress(client: any, userId: number, scenarioId: number, s
     .eq("scenario_id", scenarioId)
     .maybeSingle();
 
-  // 只有完成阶段4（原谅）才算一次成功尝试
   const isComplete = stage >= 4;
 
   if (existing) {
@@ -373,8 +418,9 @@ async function updateProgress(client: any, userId: number, scenarioId: number, s
     await client.from("progress_records").insert({
       user_id: userId,
       scenario_id: scenarioId,
-      total_attempts: isComplete ? 1 : 0,
       success_count: isComplete ? 1 : 0,
+      total_attempts: isComplete ? 1 : 0,
+      best_rounds: isComplete ? 1 : null,
     });
   }
 }

@@ -4,9 +4,16 @@ import { progressRecords, scenarios, users } from "@/storage/database/shared/sch
 import { desc, eq, sql, count } from "drizzle-orm";
 
 export async function GET() {
+  if (!db) {
+    return NextResponse.json({
+      leaderboard: [],
+      myRank: null,
+      totalUsers: 0,
+      totalScenarios: 8,
+    });
+  }
+
   try {
-    // 获取排行榜数据：按成功次数排序
-    // 注意：userId 是 varchar 类型，id 是 integer 类型，需要转换
     const leaderboardData = await db
       .select({
         userId: progressRecords.userId,
@@ -23,17 +30,12 @@ export async function GET() {
       .limit(50)
       .execute();
 
-    // 获取我的排名
-    const myRank = leaderboardData.findIndex((_, index) => index >= 0) + 1;
-
-    // 获取总用户数
     const totalUsersResult = await db
       .select({ count: count() })
       .from(users)
       .execute();
     const totalUsers = totalUsersResult[0]?.count || 0;
 
-    // 获取场景总数
     const totalScenariosResult = await db
       .select({ count: count() })
       .from(scenarios)
@@ -48,11 +50,17 @@ export async function GET() {
           ? Math.round((Number(item.totalSuccess) / Number(item.totalAttempts)) * 100) 
           : 0,
       })),
+      myRank: null,
       totalUsers,
       totalScenarios,
     });
   } catch (error) {
-    console.error("获取排行榜失败:", error);
-    return NextResponse.json({ error: "获取排行榜失败" }, { status: 500 });
+    console.error('[Leaderboard] Error:', error);
+    return NextResponse.json({
+      leaderboard: [],
+      myRank: null,
+      totalUsers: 0,
+      totalScenarios: 8,
+    });
   }
 }

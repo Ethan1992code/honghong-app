@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
 
-// GET /api/sessions?user_id=xxx - 获取用户的所有会话
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("user_id");
@@ -11,6 +10,11 @@ export async function GET(request: NextRequest) {
   }
 
   const client = getSupabaseClient();
+  
+  if (!client) {
+    return NextResponse.json({ sessions: [] });
+  }
+
   const { data, error } = await client
     .from("sessions")
     .select("id, scenario_id, current_stage, status, rounds_count, created_at")

@@ -6,6 +6,13 @@ import { users } from "@/storage/database/shared/schema";
 import { eq, sql } from "drizzle-orm";
 
 export async function POST(request: NextRequest) {
+  if (!db) {
+    return NextResponse.json(
+      { error: "服务暂不可用，请稍后再试" },
+      { status: 503 }
+    );
+  }
+
   try {
     const { username, password } = await request.json();
 
@@ -30,7 +37,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 检查用户名是否已存在
     const existingUser = await db
       .select({ id: users.id })
       .from(users)
@@ -45,10 +51,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 哈希密码
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 获取当前最大用户ID并生成新ID
     const maxIdResult = await db
       .select({ maxId: sql<number>`MAX(id)` })
       .from(users)
@@ -56,7 +60,6 @@ export async function POST(request: NextRequest) {
     const maxId = maxIdResult[0]?.maxId || 0;
     const newId = Number(maxId) + 1;
 
-    // 创建用户
     const newUserResult = await db
       .insert(users)
       .values({
@@ -69,32 +72,16 @@ export async function POST(request: NextRequest) {
 
     const newUser = newUserResult[0];
 
-    if (!newUser) {
-      console.error("创建用户失败: 没有返回用户");
-      return NextResponse.json(
-        { error: "注册失败，请稍后重试" },
-        { status: 500 }
-      );
-    }
-
-    // 设置 session
     const session = await getSession();
     session.userId = newUser.id;
-    session.username = newUser.username;
     session.isLoggedIn = true;
     await session.save();
 
-    return NextResponse.json({
-      success: true,
-      user: {
-        id: newUser.id,
-        username: newUser.username,
-      },
-    });
+    return NextResponse.json({ success: true, user: { id: newUser.id, username: newUser.username } });
   } catch (error) {
-    console.error("注册错误:", error);
+    console.error('[Register] Error:', error);
     return NextResponse.json(
-      { error: "服务器错误" },
+      { error: "注册失败，请稍后再试" },
       { status: 500 }
     );
   }

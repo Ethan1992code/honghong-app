@@ -104,6 +104,11 @@ const boyfriendScenarios = [
 async function seed() {
   console.log("开始插入 boyfriend 场景...");
 
+  if (!db) {
+    console.error("Database client is not initialized");
+    process.exit(1);
+  }
+
   for (const s of boyfriendScenarios) {
     await db.insert(scenarios).values({
       title: s.title,
