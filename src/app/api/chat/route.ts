@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { getSession } from "@/lib/session";
+import { getRequestOrigin } from "@/lib/request-origin";
 
 const VOLCANO_ARK_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3";
 const VOLCANO_ARK_MODEL = "doubao-seed-2-0-lite-260215";
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "缺少场景ID" }, { status: 400 });
       }
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/api/scenarios?id=${scenario_id}`);
+      const res = await fetch(`${getRequestOrigin(request)}/api/scenarios?id=${scenario_id}`);
       const scenariosData = await res.json();
       const scenario = scenariosData.scenarios?.find((s: any) => s.id === scenario_id);
 
