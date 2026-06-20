@@ -1,21 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
-import { LLMClient, Config } from "coze-coding-dev-sdk";
 import { getSession } from "@/lib/session";
 
-// 初始化 LLM 配置 - 支持多种环境变量名
-function getLLMConfig(): Config {
-  const apiKey = process.env.COZE_WORKLOAD_IDENTITY_API_KEY || '';
-  
+const VOLCANO_ARK_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3";
+const VOLCANO_ARK_MODEL = "doubao-seed-2-0-lite-260215";
+
+interface LLMMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+async function callVolcanoArk(
+  messages: LLMMessage[],
+  temperature: number = 0.8
+): Promise<string> {
+  const apiKey = process.env.ARK_API_KEY;
   if (!apiKey) {
-    console.warn('[LLM] API key not found in environment variables');
+    throw new Error("ARK_API_KEY environment variable is not set");
   }
-  
-  return new Config({
-    apiKey,
-    baseUrl: process.env.COZE_INTEGRATION_BASE_URL || 'https://integration.coze.cn',
-    modelBaseUrl: process.env.COZE_INTEGRATION_MODEL_BASE_URL || 'https://integration.coze.cn/api/v3',
+
+  const response = await fetch(`${VOLCANO_ARK_BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: VOLCANO_ARK_MODEL,
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      temperature,
+    }),
   });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Volcano Ark API error: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || "";
 }
 
 const STAGES = [
@@ -127,21 +150,18 @@ export async function POST(request: NextRequest) {
 
       messages.push({ role: "user", content: user_message });
 
-      const response = await llm.invoke(messages, {
-        model: "doubao-seed-2-0-lite-260215",
-        temperature: 0.8,
-      });
+      const response = await callVolcanoArk(messages, 0.8);
 
       let llmResult: { response: string; stage_changed: boolean; reference_answer: string | null; suggestions?: string[] };
       try {
-        const jsonStr = response.content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+        const jsonStr = response.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
         llmResult = JSON.parse(jsonStr);
         if (!llmResult.response) {
           throw new Error("缺少 response 字段");
         }
       } catch {
         llmResult = {
-          response: response.content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim(),
+          response: response.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim(),
           stage_changed: false,
           reference_answer: null,
           suggestions: [],
@@ -204,21 +224,18 @@ export async function POST(request: NextRequest) {
 
       messages.push({ role: "user", content: user_message });
 
-      const response = await llm.invoke(messages, {
-        model: "doubao-seed-2-0-lite-260215",
-        temperature: 0.8,
-      });
+      const response = await callVolcanoArk(messages, 0.8);
 
       let llmResult: { response: string; stage_changed: boolean; reference_answer: string | null; suggestions?: string[] };
       try {
-        const jsonStr = response.content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+        const jsonStr = response.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
         llmResult = JSON.parse(jsonStr);
         if (!llmResult.response) {
           throw new Error("缺少 response 字段");
         }
       } catch {
         llmResult = {
-          response: response.content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim(),
+          response: response.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim(),
           stage_changed: false,
           reference_answer: null,
           suggestions: [],
@@ -325,14 +342,11 @@ export async function POST(request: NextRequest) {
 
     messages.push({ role: "user", content: user_message });
 
-    const response = await llm.invoke(messages, {
-      model: "doubao-seed-2-0-lite-260215",
-      temperature: 0.8,
-    });
+    const response = await callVolcanoArk(messages, 0.8);
 
     let llmResult: { response: string; stage_changed: boolean; reference_answer: string | null; suggestions?: string[] };
     try {
-      const jsonStr = response.content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+      const jsonStr = response.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
       llmResult = JSON.parse(jsonStr);
 
       if (!llmResult.response) {
@@ -340,7 +354,7 @@ export async function POST(request: NextRequest) {
       }
     } catch {
       llmResult = {
-        response: response.content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim(),
+        response: response.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim(),
         stage_changed: false,
         reference_answer: null,
         suggestions: [],
