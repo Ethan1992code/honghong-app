@@ -117,8 +117,6 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
-    const config = getLLMConfig();
-    const llm = new LLMClient(config);
 
     if (!client) {
       console.warn('[Chat] Supabase not available, using guest mode');
