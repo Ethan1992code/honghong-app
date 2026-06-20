@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { getSession } from "@/lib/session";
 import { getRequestOrigin } from "@/lib/request-origin";
+import { findScenarioById } from "@/lib/scenarios";
 
 const VOLCANO_ARK_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3";
 const VOLCANO_ARK_MODEL = "doubao-seed-2-0-lite-260215";
@@ -9,6 +10,16 @@ const VOLCANO_ARK_MODEL = "doubao-seed-2-0-lite-260215";
 interface LLMMessage {
   role: "system" | "user" | "assistant";
   content: string;
+}
+
+interface ScenarioSummary {
+  id: number | string;
+  title: string;
+  description: string;
+  category: string;
+  stage_config?: unknown[];
+  stageConfig?: unknown[];
+  [key: string]: unknown;
 }
 
 async function callVolcanoArk(
@@ -48,6 +59,19 @@ const STAGES = [
   { id: 3, name: "心软" },
   { id: 4, name: "原谅" },
 ];
+
+async function loadScenarioFromApi(
+  request: NextRequest,
+  scenarioId: number | string
+): Promise<ScenarioSummary | null> {
+  const res = await fetch(`${getRequestOrigin(request)}/api/scenarios`);
+  if (!res.ok) {
+    throw new Error(`Scenario API error: ${res.status}`);
+  }
+
+  const scenariosData = (await res.json()) as { scenarios?: ScenarioSummary[] };
+  return findScenarioById(scenariosData.scenarios ?? [], scenarioId) ?? null;
+}
 
 function buildSystemPrompt(scenario: any, currentStage: number) {
   const isGirlfriend = scenario.category === "girlfriend";
@@ -125,9 +149,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "缺少场景ID" }, { status: 400 });
       }
 
-      const res = await fetch(`${getRequestOrigin(request)}/api/scenarios?id=${scenario_id}`);
-      const scenariosData = await res.json();
-      const scenario = scenariosData.scenarios?.find((s: any) => s.id === scenario_id);
+      const scenario = await loadScenarioFromApi(request, scenario_id);
 
       if (!scenario) {
         return NextResponse.json({ error: "场景不存在" }, { status: 404 });
@@ -191,15 +213,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (!isLoggedIn) {
-      let scenario: any;
-      if (scenario_id) {
-        const { data: scenarioData } = await client
-          .from("scenarios")
-          .select("*")
-          .eq("id", scenario_id)
-          .single();
-        scenario = scenarioData;
-      } else {
+      const scenario = scenario_id ? await loadScenarioFromApi(request, scenario_id) : null;
+
+      if (!scenario_id) {
         return NextResponse.json({ error: "缺少场景ID" }, { status: 400 });
       }
 
