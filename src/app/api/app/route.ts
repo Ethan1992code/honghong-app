@@ -3,10 +3,7 @@ import { LLMClient, Config, TTSClient } from "coze-coding-dev-sdk";
 
 // 初始化配置 - 支持多种环境变量名
 function getSDKConfig(): Config {
-  const apiKey = process.env.COZE_WORKLOAD_IDENTITY_API_KEY || 
-                 process.env['api-key-20260618204907'] ||
-                 process.env.api_key_20260618204907 ||
-                 '';
+  const apiKey = process.env.COZE_WORKLOAD_IDENTITY_API_KEY || '';
   
   if (!apiKey) {
     console.warn('[SDK] API key not found in environment variables');

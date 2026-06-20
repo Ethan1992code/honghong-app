@@ -5,11 +5,7 @@ import { getSession } from "@/lib/session";
 
 // 初始化 LLM 配置 - 支持多种环境变量名
 function getLLMConfig(): Config {
-  // 尝试多种可能的 API key 变量名（支持连字符和下划线）
-  const apiKey = process.env.COZE_WORKLOAD_IDENTITY_API_KEY || 
-                 process.env['api-key-20260618204907'] ||
-                 process.env.api_key_20260618204907 ||
-                 '';
+  const apiKey = process.env.COZE_WORKLOAD_IDENTITY_API_KEY || '';
   
   if (!apiKey) {
     console.warn('[LLM] API key not found in environment variables');
