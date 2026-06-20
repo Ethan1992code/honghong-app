@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/storage/database/drizzle-client";
 import { scenarios } from "@/storage/database/shared/schema";
+import { normalizeScenario } from "@/lib/scenarios";
 import { eq, asc } from "drizzle-orm";
 
 const defaultScenarios = [
@@ -65,9 +66,13 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get("category");
     
     if (category) {
-      return NextResponse.json({ scenarios: defaultScenarios.filter(s => s.category === category) });
+      return NextResponse.json({
+        scenarios: defaultScenarios
+          .filter(s => s.category === category)
+          .map(normalizeScenario),
+      });
     }
-    return NextResponse.json({ scenarios: defaultScenarios });
+    return NextResponse.json({ scenarios: defaultScenarios.map(normalizeScenario) });
   }
 
   const { searchParams } = new URL(request.url);
@@ -106,8 +111,8 @@ export async function GET(request: NextRequest) {
     }
   } catch (error) {
     console.error('[Scenarios] Database query failed:', error);
-    return NextResponse.json({ scenarios: defaultScenarios });
+    return NextResponse.json({ scenarios: defaultScenarios.map(normalizeScenario) });
   }
 
-  return NextResponse.json({ scenarios: data });
+  return NextResponse.json({ scenarios: data.map(normalizeScenario) });
 }
