@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { normalizeScenario } from "./scenarios";
+import { findScenarioById, normalizeScenario } from "./scenarios";
 
 const normalized = normalizeScenario({
   id: 1,
@@ -18,3 +18,11 @@ assert.equal(normalized.emotionLevel, 5);
 assert.equal(normalized.stage_config[0]?.name, "angry");
 assert.equal(normalized.stage_config[1]?.hint, "listen");
 assert.deepEqual(normalized.stageConfig, normalized.stage_config);
+
+const scenarios = [
+  { id: 1, title: "first" },
+  { id: 2, title: "second" },
+];
+
+assert.equal(findScenarioById(scenarios, "2")?.title, "second");
+assert.equal(findScenarioById(scenarios, 3), undefined);
