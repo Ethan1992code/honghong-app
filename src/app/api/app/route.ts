@@ -62,8 +62,6 @@ async function handleChat(
       success: true,
       model: modelId,
       response: response.content,
-      usage: response.usage,
-      id: response.id,
     });
   } catch (error) {
     console.error("Chat error:", error);

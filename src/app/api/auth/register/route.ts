@@ -50,11 +50,11 @@ export async function POST(request: NextRequest) {
 
     // 获取当前最大用户ID并生成新ID
     const maxIdResult = await db
-      .select({ maxId: sql`MAX(id)` })
+      .select({ maxId: sql<number>`MAX(id)` })
       .from(users)
       .execute();
     const maxId = maxIdResult[0]?.maxId || 0;
-    const newId = maxId + 1;
+    const newId = Number(maxId) + 1;
 
     // 创建用户
     const newUserResult = await db

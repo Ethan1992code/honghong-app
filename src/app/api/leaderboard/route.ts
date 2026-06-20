@@ -44,7 +44,7 @@ export async function GET() {
       leaderboard: leaderboardData.map((item, index) => ({
         ...item,
         rank: index + 1,
-        winRate: item.totalAttempts > 0 
+        winRate: Number(item.totalAttempts) > 0 
           ? Math.round((Number(item.totalSuccess) / Number(item.totalAttempts)) * 100) 
           : 0,
       })),
