@@ -1,6 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LLMClient, Config, TTSClient } from "coze-coding-dev-sdk";
 
+// 初始化配置 - 支持多种环境变量名
+function getSDKConfig(): Config {
+  const apiKey = process.env.COZE_WORKLOAD_IDENTITY_API_KEY || 
+                 process.env.api_key_20260618204907 ||
+                 '';
+  
+  if (!apiKey) {
+    console.warn('[SDK] API key not found in environment variables');
+  }
+  
+  return new Config({
+    apiKey,
+    baseUrl: process.env.COZE_INTEGRATION_BASE_URL || 'https://integration.coze.cn',
+    modelBaseUrl: process.env.COZE_INTEGRATION_MODEL_BASE_URL || 'https://integration.coze.cn/api/v3',
+  });
+}
+
 // 火山引擎 API 配置
 const VOLCANO_BASE_URL = process.env.VOLCANO_BASE_URL || "https://ark.cn-beijing.volces.com/api/v3";
 const VOLCANO_API_KEY = process.env.ARK_API_KEY || "";
@@ -49,7 +66,7 @@ async function handleChat(
   try {
     const modelId = SUPPORTED_MODELS[model as ModelType] || model || SUPPORTED_MODELS["doubao-seed-2.0-lite"];
     
-    const config = new Config();
+    const config = getSDKConfig();
     const llm = new LLMClient(config);
 
     const response = await llm.invoke(params.messages, {
@@ -89,7 +106,7 @@ async function handleTTS(params: { text: string; speaker?: string; speech_rate?:
 
     const speakerId = speakerMap[speaker] || speakerMap["meilinvyou"];
 
-    const config = new Config();
+    const config = getSDKConfig();
     const ttsClient = new TTSClient(config);
 
     const response = await ttsClient.synthesize({

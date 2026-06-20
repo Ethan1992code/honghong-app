@@ -3,6 +3,24 @@ import { getSupabaseClient } from "@/storage/database/supabase-client";
 import { LLMClient, Config } from "coze-coding-dev-sdk";
 import { getSession } from "@/lib/session";
 
+// 初始化 LLM 配置 - 支持多种环境变量名
+function getLLMConfig(): Config {
+  // 尝试多种可能的 API key 变量名
+  const apiKey = process.env.COZE_WORKLOAD_IDENTITY_API_KEY || 
+                 process.env.api_key_20260618204907 ||
+                 '';
+  
+  if (!apiKey) {
+    console.warn('[LLM] API key not found in environment variables');
+  }
+  
+  return new Config({
+    apiKey,
+    baseUrl: process.env.COZE_INTEGRATION_BASE_URL || 'https://integration.coze.cn',
+    modelBaseUrl: process.env.COZE_INTEGRATION_MODEL_BASE_URL || 'https://integration.coze.cn/api/v3',
+  });
+}
+
 const STAGES = [
   { id: 1, name: "生气" },
   { id: 2, name: "缓和" },
@@ -79,7 +97,7 @@ export async function POST(request: NextRequest) {
     }
 
     const client = getSupabaseClient();
-    const config = new Config();
+    const config = getLLMConfig();
     const llm = new LLMClient(config);
 
     if (!client) {

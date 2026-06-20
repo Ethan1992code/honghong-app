@@ -1,6 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TTSClient, Config } from "coze-coding-dev-sdk";
 
+// 初始化配置 - 支持多种环境变量名
+function getTTSConfig(): Config {
+  const apiKey = process.env.COZE_WORKLOAD_IDENTITY_API_KEY || 
+                 process.env.api_key_20260618204907 ||
+                 '';
+  
+  if (!apiKey) {
+    console.warn('[TTS] API key not found in environment variables');
+  }
+  
+  return new Config({
+    apiKey,
+    baseUrl: process.env.COZE_INTEGRATION_BASE_URL || 'https://integration.coze.cn',
+    modelBaseUrl: process.env.COZE_INTEGRATION_MODEL_BASE_URL || 'https://integration.coze.cn/api/v3',
+  });
+}
+
 const SPEAKER_OPTIONS = {
   meilinvyou: "zh_female_meilinvyou_saturn_bigtts",
 } as const;
@@ -18,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     const speakerId = SPEAKER_OPTIONS[speaker as SpeakerType] || SPEAKER_OPTIONS.meilinvyou;
 
-    const config = new Config();
+    const config = getTTSConfig();
     const ttsClient = new TTSClient(config);
 
     const response = await ttsClient.synthesize({
