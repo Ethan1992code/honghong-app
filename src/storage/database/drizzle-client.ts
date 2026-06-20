@@ -13,6 +13,9 @@ if (DATABASE_URL) {
       ssl: {
         rejectUnauthorized: false,
       },
+      // Neon 无服务器数据库需要更长的连接超时
+      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis: 30000,
     });
 
     db = drizzle(pool, { schema });
