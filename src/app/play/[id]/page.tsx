@@ -29,6 +29,9 @@ interface Message {
 interface ChatResponse {
   session_id: string;
   response: string;
+  emotion?: string;
+  score_delta?: number;
+  emotion_score?: number;
   stage_changed: boolean;
   current_stage: number;
   total_stages: number;
@@ -61,6 +64,7 @@ export default function PlayPage() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [currentStage, setCurrentStage] = useState(1);
+  const [emotionScore, setEmotionScore] = useState(0);
   const [totalStages] = useState(4);
   const [sessionStatus, setSessionStatus] = useState("in_progress");
   const [referenceAnswer, setReferenceAnswer] = useState<string | null>(null);
@@ -169,6 +173,7 @@ export default function PlayPage() {
       if (isGuest || !sessionId) {
         body.guest_session = {
           current_stage: currentStage,
+          emotion_score: emotionScore,
           rounds_count: roundsCount,
           history: messages.map(m => ({ role: m.role, content: m.content })),
         };
@@ -196,6 +201,9 @@ export default function PlayPage() {
 
       // 更新轮次
       setRoundsCount(data.rounds_count);
+      if (typeof data.emotion_score === "number") {
+        setEmotionScore(data.emotion_score);
+      }
 
       const stageChanged = data.stage_changed;
       if (stageChanged) {
@@ -252,7 +260,7 @@ export default function PlayPage() {
     } finally {
       setSending(false);
     }
-  }, [sending, sessionStatus, sessionId, id, currentStage, scenario, isGirlfriend, soundEnabled, speakMessage, messages, roundsCount, isGuest]);
+  }, [sending, sessionStatus, sessionId, id, currentStage, emotionScore, scenario, isGirlfriend, soundEnabled, speakMessage, messages, roundsCount, isGuest]);
 
   // 点击搞笑选项
   const handleSuggestionClick = (text: string) => {
@@ -264,6 +272,7 @@ export default function PlayPage() {
     setMessages([]);
     setSessionId(null);
     setCurrentStage(1);
+    setEmotionScore(0);
     setSessionStatus("in_progress");
     setReferenceAnswer(null);
     setLastSuggestions([]);

@@ -16,6 +16,16 @@ function getTTSConfig(): Config {
   });
 }
 
+function createUnavailableTTSResponse(reason: string) {
+  console.warn(`[TTS] Skipping synthesis: ${reason}`);
+
+  return NextResponse.json({
+    audioUri: null,
+    audioSize: 0,
+    unavailable: true,
+  });
+}
+
 const SPEAKER_OPTIONS = {
   meilinvyou: "zh_female_meilinvyou_saturn_bigtts",
 } as const;
@@ -32,6 +42,10 @@ export async function POST(request: NextRequest) {
     }
 
     const speakerId = SPEAKER_OPTIONS[speaker as SpeakerType] || SPEAKER_OPTIONS.meilinvyou;
+
+    if (!process.env.COZE_WORKLOAD_IDENTITY_API_KEY) {
+      return createUnavailableTTSResponse("missing COZE_WORKLOAD_IDENTITY_API_KEY");
+    }
 
     const config = getTTSConfig();
     const ttsClient = new TTSClient(config);
@@ -50,6 +64,8 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("TTS API error:", error);
-    return NextResponse.json({ error: "语音合成失败" }, { status: 500 });
+    return createUnavailableTTSResponse(
+      error instanceof Error ? error.message : "unknown TTS error"
+    );
   }
 }
