@@ -33,35 +33,54 @@ interface GuestSessionState {
   history?: GuestHistoryMessage[];
 }
 
+function createFallbackArkResponse(reason: string): string {
+  console.warn(`[Chat] Falling back to local response: ${reason}`);
+
+  return JSON.stringify({
+    response: "我现在还是有点生气，但你愿意认真道歉，我会听你继续说。",
+    stage_changed: false,
+    reference_answer:
+      "可以说：对不起，是我忽略了你的感受。你对我很重要，我会用行动补回来。",
+    suggestions: ["那你别气了呗", "我先忙一会儿", "这也不算大事吧"],
+  });
+}
+
 async function callVolcanoArk(
   messages: LLMMessage[],
   temperature: number = 0.8
 ): Promise<string> {
   const apiKey = process.env.ARK_API_KEY;
   if (!apiKey) {
-    throw new Error("ARK_API_KEY environment variable is not set");
+    return createFallbackArkResponse("missing model api key");
   }
 
-  const response = await fetch(`${VOLCANO_ARK_BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: VOLCANO_ARK_MODEL,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
-      temperature,
-    }),
-  });
+  try {
+    const response = await fetch(`${VOLCANO_ARK_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: VOLCANO_ARK_MODEL,
+        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        temperature,
+      }),
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Volcano Ark API error: ${response.status} - ${errorText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      return createFallbackArkResponse(
+        `upstream ${response.status}: ${errorText.slice(0, 200)}`
+      );
+    }
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || createFallbackArkResponse("empty model response");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown model error";
+    return createFallbackArkResponse(message);
   }
-
-  const data = await response.json();
-  return data.choices?.[0]?.message?.content || "";
 }
 
 const STAGES = [
